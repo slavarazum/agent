@@ -326,6 +326,81 @@ await agent.deleteMessageRange(ctx, {
 });
 ```
 
+## Reacting to saved messages
+
+To keep your own tables in step with a thread, such as a message count, a
+last-activity time or a search index, pass an internal mutation as
+`onSaveMessages`. Each save the Agent makes to a thread's messages schedules it
+with what that save wrote: each message's id, `order`, `stepOrder`, `status`,
+and whether it was an `insert`, `update` or `delete`. That covers generations
+and their steps, `saveMessage(s)`, tool approvals, `finalizeMessage`,
+`updateMessage`, embeddings, and deleting messages, ranges and threads.
+
+```ts
+import { vOnSaveMessagesArgs } from "@convex-dev/agent";
+
+export const onSaveMessages = internalMutation({
+  args: vOnSaveMessagesArgs,
+  handler: async (ctx, { threadId, messages }) => {
+    // Reports can arrive in any order, and a message may have changed since
+    // its report was sent, so read each message's current state by id.
+    const docs = await ctx.runQuery(
+      components.agent.messages.getMessagesByIds,
+      {
+        messageIds: messages.map((m) => m.messageId),
+      },
+    );
+    for (const [i, { messageId }] of messages.entries()) {
+      const doc = docs[i];
+      const row = await ctx.db
+        .query("messageIndex")
+        .withIndex("messageId", (q) => q.eq("messageId", messageId))
+        .unique();
+      if (!doc) {
+        if (row) await ctx.db.delete("messageIndex", row._id);
+        continue;
+      }
+      const { order, stepOrder, text } = doc;
+      const fields = { threadId, messageId, order, stepOrder, text };
+      if (row) await ctx.db.replace("messageIndex", row._id, fields);
+      else await ctx.db.insert("messageIndex", fields);
+    }
+  },
+});
+
+const agent = new Agent(components.agent, {
+  name: "support",
+  languageModel,
+  onSaveMessages: internal.myModule.onSaveMessages,
+});
+```
+
+- A report is atomic with its save: if the save commits, its report is
+  scheduled; if the report can't be scheduled, the save doesn't commit. A save
+  schedules one function for its report, however many threads it touched, just
+  like a `ctx.scheduler.runAfter` in your own mutation, and it counts toward
+  that save's transaction limits.
+- A scheduling failure is a save failure, and it surfaces exactly the way any
+  other failure of that save does.
+- The hook runs after its save commits, in its own transaction for each thread,
+  so a slow, contended or failing hook only affects that thread's report. If it
+  throws, the error is logged and that report is dropped. It isn't retried
+  beyond Convex's own retries of a mutation that conflicts.
+- If the `onSaveMessages` function no longer exists when the Agent resolves it,
+  as in an action that outlived the deploy that removed it, the error is logged
+  and the Agent saves as if it had no hook.
+- Delivery order isn't guaranteed, even within a thread. Place messages by
+  `order` and `stepOrder`, and read them by id for their current state.
+- Only writes made through an Agent with `onSaveMessages` are reported. Writes
+  made without one, such as the standalone `saveMessage` and `saveMessages`
+  functions, `components.agent` calls, deleting a user's data, or cloning a
+  thread, are not.
+- A hook that saves to its own thread through the same Agent hears about that
+  save too, and runs again. Save from the hook with the standalone `saveMessage`
+  to avoid a loop.
+- An Agent without `onSaveMessages` makes the same calls, reads and writes as
+  one from before this option existed.
+
 ## Other utilities:
 
 ```ts
