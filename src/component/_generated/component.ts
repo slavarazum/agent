@@ -2253,6 +2253,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             numItems: number;
           };
           statuses?: Array<"pending" | "success" | "failed">;
+          textOnly?: boolean;
           threadId: string;
           upToAndIncludingMessageId?: string;
         },

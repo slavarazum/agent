@@ -41,6 +41,7 @@ import {
   vVectorId,
 } from "./vector/tables.js";
 import { changeRefcount } from "./files.js";
+import { leaveOutText, textMessage, withText } from "../messageText.js";
 import {
   getStreamingMessagesWithMetadata,
   finishHandler,
@@ -55,7 +56,7 @@ import {
 
 function publicMessage(message: Doc<"messages">): MessageDoc {
   return withDerivedReasoning(
-    omit(message, ["parentMessageId", "stepId", "files"]),
+    omit(withText(message), ["parentMessageId", "stepId", "files"]),
   );
 }
 
@@ -348,6 +349,9 @@ async function addMessagesHandler(
         threadId,
       });
     }
+    const text = hideFromUserIdSearch
+      ? undefined
+      : extractText(message.message);
     const messageDoc = {
       ...rest,
       ...message,
@@ -355,7 +359,8 @@ async function addMessagesHandler(
       parentMessageId: promptMessageId,
       userId,
       tool: isTool(message.message),
-      text: hideFromUserIdSearch ? undefined : extractText(message.message),
+      text,
+      ...leaveOutText(message.message, text),
       status: fail ? "failed" : (message.status ?? "success"),
       error: fail ? error : message.error,
     } satisfies Omit<
@@ -494,8 +499,9 @@ export const finalizeMessage = mutation({
   },
   returns: v.null(),
   handler: async (ctx, { messageId, result }) => {
-    const message = await ctx.db.get("messages", messageId);
-    assert(message, `Message ${messageId} not found`);
+    const stored = await ctx.db.get("messages", messageId);
+    assert(stored, `Message ${messageId} not found`);
+    const message = withText(stored);
     if (message.status !== "pending") {
       console.debug(
         "Trying to finalize a message that's already",
@@ -583,9 +589,9 @@ export const updateMessage = mutation({
     const patch: Partial<Doc<"messages">> = { ...args.patch };
 
     if (args.patch.message !== undefined) {
-      patch.message = args.patch.message;
       patch.tool = isTool(args.patch.message);
       patch.text = extractText(args.patch.message);
+      Object.assign(patch, leaveOutText(args.patch.message, patch.text));
     }
 
     if (args.patch.status === "failed") {
@@ -621,7 +627,7 @@ export const respondToToolCallApprovals = mutation({
       paginationOpts: { cursor: null, numItems: APPROVAL_LOOKUP_MESSAGES },
     });
     const plan = planToolCallApprovals(
-      page.page,
+      page.page.map(withText),
       args.decisions,
       args.threadId,
     );
@@ -795,14 +801,22 @@ export const listMessagesByThreadIdArgs = {
   paginationOpts: v.optional(paginationOptsValidator),
   statuses: v.optional(v.array(vMessageStatus)),
   upToAndIncludingMessageId: v.optional(v.id("messages")),
+  /**
+   * Returns each message as its role and text, without tool messages or
+   * saved messages that have no text, like excludeToolMessages.
+   */
+  textOnly: v.optional(v.boolean()),
 };
 export const listMessagesByThreadId = query({
   args: listMessagesByThreadIdArgs,
   handler: async (ctx, args) => {
     const messages = await listMessagesByThreadIdHandler(ctx, args, {
-      keepContinuedOrderTools: true,
+      keepContinuedOrderTools: !args.textOnly,
     });
-    return { ...messages, page: messages.page.map(publicMessage) };
+    const page = args.textOnly
+      ? messages.page.flatMap((m) => textMessage(m) ?? [])
+      : messages.page;
+    return { ...messages, page: page.map(publicMessage) };
   },
   returns: vPaginationResult(vMessageDoc),
 });
@@ -820,7 +834,8 @@ async function listMessagesByThreadIdHandler(
     !last || last.threadId === args.threadId,
     "upToAndIncludingMessageId must be a message in the thread",
   );
-  const toolOptions = args.excludeToolMessages ? [false] : [true, false];
+  const toolOptions =
+    args.excludeToolMessages || args.textOnly ? [false] : [true, false];
   const order = args.order ?? "desc";
   const streams = toolOptions.flatMap((tool) =>
     statuses.map((status) =>
@@ -841,7 +856,7 @@ async function listMessagesByThreadIdHandler(
   );
   // Excluding tool messages trims earlier orders. The order being continued
   // keeps them, or an approval loses its call and decision (#409). Cloning
-  // reuses this handler and wants strict exclusion.
+  // reuses this handler and wants strict exclusion, as does a text-only list.
   if (args.excludeToolMessages && last && keepContinuedOrderTools) {
     streams.push(
       ...statuses.map((status) =>
