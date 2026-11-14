@@ -73,6 +73,7 @@ import {
 } from "../validators.js";
 import {
   listMessages,
+  onSaveMessagesHandle,
   saveMessages,
   type SaveMessageArgs,
   type SaveMessagesArgs,
@@ -140,6 +141,7 @@ export {
   vContextOptions,
   vMessage,
   vMessageDoc,
+  vOnSaveMessagesArgs,
   vPaginationResult,
   vProviderMetadata,
   vSource,
@@ -152,6 +154,7 @@ export {
   vUserMessage,
   type Message,
   type MessageDoc,
+  type OnSaveMessagesArgs,
   type SourcePart,
   type ThreadDoc,
   type Usage,
@@ -897,6 +900,7 @@ export class Agent<
       ...rest,
       agentName: this.options.name,
       embeddings,
+      onSaveMessagesHandle: await onSaveMessagesHandle(this.options),
     });
   }
 
@@ -1119,6 +1123,7 @@ export class Agent<
         threadId: messages[0].threadId,
         userId: messages[0].userId,
         embeddingModel,
+        onSaveMessagesHandle: await onSaveMessagesHandle(this.options),
       },
       messages,
     );
@@ -1202,6 +1207,7 @@ export class Agent<
       threadId: args.threadId,
       agentName: this.options.name,
       decisions: args.decisions,
+      onSaveMessages: await onSaveMessagesHandle(this.options),
     });
   }
 
@@ -1263,6 +1269,7 @@ export class Agent<
       messages,
       embeddings,
       failPendingSteps: false,
+      onSaveMessages: await onSaveMessagesHandle(this.options),
     });
   }
 
@@ -1314,6 +1321,7 @@ export class Agent<
       messages,
       embeddings,
       agentName: this.options.name,
+      onSaveMessages: await onSaveMessagesHandle(this.options),
     });
   }
 
@@ -1335,6 +1343,7 @@ export class Agent<
     await runMutation(ctx, this.component.messages.finalizeMessage, {
       messageId: args.messageId,
       result: args.result,
+      onSaveMessages: await onSaveMessagesHandle(this.options),
     });
   }
 
@@ -1384,6 +1393,7 @@ export class Agent<
         status: args.patch.status === "success" ? "success" : "failed",
         error: args.patch.error,
       },
+      onSaveMessages: await onSaveMessagesHandle(this.options),
     });
   }
 
@@ -1397,7 +1407,10 @@ export class Agent<
     ctx: MutationCtx | ActionCtx,
     args: { messageIds: string[] },
   ): Promise<void> {
-    await ctx.runMutation(this.component.messages.deleteByIds, args);
+    await ctx.runMutation(this.component.messages.deleteByIds, {
+      messageIds: args.messageIds,
+      onSaveMessages: await onSaveMessagesHandle(this.options),
+    });
   }
 
   /**
@@ -1412,6 +1425,7 @@ export class Agent<
   ): Promise<void> {
     await ctx.runMutation(this.component.messages.deleteByIds, {
       messageIds: [args.messageId],
+      onSaveMessages: await onSaveMessagesHandle(this.options),
     });
   }
 
@@ -1468,6 +1482,7 @@ export class Agent<
       startStepOrder: args.startStepOrder,
       endOrder: args.endOrder,
       endStepOrder: args.endStepOrder,
+      onSaveMessages: await onSaveMessagesHandle(this.options),
     });
   }
 
@@ -1485,6 +1500,7 @@ export class Agent<
     await ctx.runMutation(this.component.threads.deleteAllForThreadIdAsync, {
       threadId: args.threadId,
       limit: args.pageSize,
+      onSaveMessages: await onSaveMessagesHandle(this.options),
     });
   }
 
@@ -1502,6 +1518,7 @@ export class Agent<
     await ctx.runAction(this.component.threads.deleteAllForThreadIdSync, {
       threadId: args.threadId,
       limit: args.pageSize,
+      onSaveMessages: await onSaveMessagesHandle(this.options),
     });
   }
 

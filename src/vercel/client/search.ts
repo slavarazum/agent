@@ -556,6 +556,8 @@ export async function generateAndSaveEmbeddings(
      */
     textEmbeddingModel?: EmbeddingModel;
     embeddingModel?: EmbeddingModel;
+    /** The handle of the Agent's `onSaveMessages`, to report this save to. */
+    onSaveMessagesHandle?: string;
   } & Pick<Config, "usageHandler" | "callSettings">,
   messages: MessageDoc[],
 ) {
@@ -588,6 +590,7 @@ export async function generateAndSaveEmbeddings(
           vector: embeddings.vectors[i]!,
         }))
         .filter((v) => v.vector !== null),
+      onSaveMessages: args.onSaveMessagesHandle,
     });
   }
 }
@@ -610,6 +613,7 @@ export async function fetchContextWithPrompt(
     userId: string | undefined;
     threadId: string | undefined;
     agentName?: string;
+    onSaveMessagesHandle?: string;
   } & Options &
     Config,
 ): Promise<{

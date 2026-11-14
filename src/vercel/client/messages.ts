@@ -1,5 +1,9 @@
 import type { ModelMessage } from "ai";
-import type { PaginationOptions, PaginationResult } from "convex/server";
+import {
+  createFunctionHandle,
+  type PaginationOptions,
+  type PaginationResult,
+} from "convex/server";
 import type { MessageDoc } from "../../validators.js";
 import {
   type Message,
@@ -15,12 +19,30 @@ import {
 } from "../../client/messages.js";
 import type {
   AgentComponent,
+  Config,
   MutationCtx,
   QueryCtx,
   ActionCtx,
 } from "./types.js";
 
 export { listMessages } from "../../client/messages.js";
+
+export async function onSaveMessagesHandle(
+  config: Pick<Config, "onSaveMessages">,
+): Promise<string | undefined> {
+  if (!config.onSaveMessages) return undefined;
+  // Rejects when the function is gone, e.g. an action that outlived the deploy
+  // removing it. Like a hook that throws, that must never fail the save.
+  try {
+    return await createFunctionHandle(config.onSaveMessages);
+  } catch (error) {
+    console.error(
+      "onSaveMessages couldn't be resolved, so these saves won't be reported:",
+      error,
+    );
+    return undefined;
+  }
+}
 
 export async function listUIMessages(
   ctx: QueryCtx | MutationCtx | ActionCtx,
@@ -86,6 +108,8 @@ export async function saveMessages(
      * The agent name to associate with the messages.
      */
     agentName?: string;
+    /** The handle of the Agent's `onSaveMessages`, to report this save to. */
+    onSaveMessagesHandle?: string;
   },
 ): Promise<{ messages: MessageDoc[] }> {
   const serialized = await Promise.all(
@@ -110,6 +134,7 @@ export async function saveMessages(
       };
     }),
     failPendingSteps: args.failPendingSteps ?? false,
+    onSaveMessagesHandle: args.onSaveMessagesHandle,
   });
 }
 

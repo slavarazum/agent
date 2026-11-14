@@ -845,6 +845,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
               | { message: string; type: "other" }
             >;
           }>;
+          onSaveMessages?: string;
           order?: number | "next";
           pendingMessageId?: string;
           promptMessageId?: string;
@@ -1566,7 +1567,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       deleteByIds: FunctionReference<
         "mutation",
         "internal",
-        { messageIds: Array<string> },
+        { messageIds: Array<string>; onSaveMessages?: string },
         Array<string>,
         Name
       >;
@@ -1576,6 +1577,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         {
           endOrder: number;
           endStepOrder?: number;
+          onSaveMessages?: string;
           startOrder: number;
           startStepOrder?: number;
           threadId: string;
@@ -1588,6 +1590,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "internal",
         {
           messageId: string;
+          onSaveMessages?: string;
           result: { status: "success" } | { error: string; status: "failed" };
         },
         null,
@@ -2965,6 +2968,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             approved: boolean;
             reason?: string;
           }>;
+          onSaveMessages?: string;
           threadId: string;
         },
         { messageId: string },
@@ -4269,6 +4273,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "internal",
         {
           messageId: string;
+          onSaveMessages?: string;
           patch: {
             error?: string;
             fileIds?: Array<string>;
@@ -5699,6 +5704,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           deltaCursor?: string;
           limit?: number;
           messagesDone?: boolean;
+          onSaveMessages?: string;
           streamOrder?: number;
           streamsDone?: boolean;
           threadId: string;
@@ -5709,7 +5715,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       deleteAllForThreadIdSync: FunctionReference<
         "action",
         "internal",
-        { limit?: number; threadId: string },
+        { limit?: number; onSaveMessages?: string; threadId: string },
         null,
         Name
       >;
@@ -5884,6 +5890,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           "mutation",
           "internal",
           {
+            onSaveMessages?: string;
             vectorDimension:
               | 128
               | 256
