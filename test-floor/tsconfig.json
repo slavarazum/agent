@@ -1,7 +1,8 @@
 {
-  // Checks the built package's declarations against the oldest convex in
-  // peerDependencies. `paths` sends every convex import, including those
-  // inside dist and other packages, to the copy that run.sh unpacks here.
+  // Checks every public entry, as a consumer resolves it, against the oldest
+  // convex in peerDependencies. `/test` is .ts source, so it is checked even
+  // under skipLibCheck. `paths` sends every convex import, including those
+  // inside dist, src and other packages, to the copy that run.sh unpacks here.
   "compilerOptions": {
     "strict": true,
     "target": "ESNext",
